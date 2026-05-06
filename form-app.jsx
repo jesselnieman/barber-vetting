@@ -160,7 +160,7 @@ function ApplicationForm() {
         <div className="brand-lockup">
           <img src="assets/logomark.png" alt="Center City Barbers" />
           <div className="brand-text">
-            Center City Barbers
+            CENTER CITY BARBERS
             <small>Lakeland · Est. Downtown</small>
           </div>
         </div>

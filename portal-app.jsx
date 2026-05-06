@@ -16,7 +16,7 @@ function PinGate({ onUnlock }) {
       <div className="pin-card">
         <div className="pin-brand">
           <img src="assets/logomark.png" alt="" />
-          <span>Center City Barbers</span>
+          <span>CENTER CITY BARBERS</span>
         </div>
         <div className="eyebrow">Bruce's Review</div>
         <h1 style={{marginTop: 8}}>Who <em>is it?</em></h1>

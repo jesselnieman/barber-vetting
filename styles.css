@@ -13,9 +13,9 @@
   --danger: #c97a6b;
   --rule: rgba(233, 230, 222, 0.12);
   --rule-strong: rgba(233, 230, 222, 0.28);
-  --serif: "Cormorant Garamond", "Adobe Caslon Pro", "Garamond", "Times New Roman", serif;
-  --serif-display: "Fraunces", "Cormorant Garamond", Georgia, serif;
-  --sans: "Inter Tight", "Helvetica Neue", Arial, sans-serif;
+  --serif: "Inter", "Helvetica Neue", Arial, sans-serif;
+  --serif-display: "Inter", "Helvetica Neue", Arial, sans-serif;
+  --sans: "Inter", "Helvetica Neue", Arial, sans-serif;
   --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
 }
 

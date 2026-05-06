@@ -9,7 +9,7 @@ function ThankYou({ submission, onReset }) {
         <div className="ty-brand">
           <img src="assets/logomark.png" alt="" />
           <div>
-            <div className="brand-name">Center City Barbers</div>
+            <div className="brand-name">CENTER CITY BARBERS</div>
             <div className="brand-sub">Lakeland, FL · Est. downtown</div>
           </div>
         </div>
