@@ -10,7 +10,6 @@ const HERO_IMAGES = [
 ];
 
 const HERO_COPY = [
-  { eyebrow: "Now hiring barbers", title: <>A chair, <em>earned.</em></>, body: "Center City Barbers is hiring. This is the first conversation. Answer straight, answer honest — it's how we work." },
   { eyebrow: "Section 01 · Basics", title: <>Start here.</>, body: "Three questions. License, schedule, booth rent. The rest of the application only matters if these three are yes." },
   { eyebrow: "Section 02 · Craft", title: <>The <em>work.</em></>, body: "Your clippers, your shears, your razor. Tell us what you can do and what you do best." },
   { eyebrow: "Section 03 · The chair as a business", title: <>Your <em>book.</em></>, body: "A barber is a small business. How you handle bookings, clients, and your own brand matters." },
