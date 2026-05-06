@@ -28,7 +28,7 @@ function ThankYou({ submission, onReset }) {
             Thanks, <em>{firstName}</em>.
           </h1>
           <p className="ty-lede">
-            Your application landed in my inbox. I read every one of these myself — not a form, not a bot, me.
+            Your application landed in my inbox. I read every one of these myself.
           </p>
 
           <div className="ty-rule"></div>
@@ -38,10 +38,7 @@ function ThankYou({ submission, onReset }) {
               What happens next is simple. I'll sit with your answers over the next few days. If your shape fits the shop, you'll hear from me personally — by phone, not email — to set up a working interview.
             </p>
             <p>
-              A working interview means you come in, cut two heads, and we see how you move. I pay for your time either way.
-            </p>
-            <p>
-              If it's not the right fit right now, I'll still reach out. I don't ghost people. The Lakeland barber scene is small and I remember every name.
+              If it's not the right fit right now, I'll still reach out.
             </p>
             <p className="ty-signoff">
               Appreciate you taking the time.
