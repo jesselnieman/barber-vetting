@@ -6,7 +6,26 @@
   grid-template-columns: 340px 1fr;
   background: var(--bg);
 }
-@media (max-width: 900px) { .portal-shell { grid-template-columns: 1fr; } }
+@media (max-width: 900px) {
+  .portal-shell { grid-template-columns: 1fr; }
+  .portal-shell.mobile-list .portal-main { display: none; }
+  .portal-shell.mobile-detail .portal-side { display: none; }
+}
+
+.mobile-back {
+  display: none;
+  background: transparent;
+  border: 0;
+  color: var(--ink-dim);
+  font-family: var(--sans);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 0 0 18px;
+  cursor: pointer;
+}
+.mobile-back:hover { color: var(--ink); }
+@media (max-width: 900px) { .mobile-back { display: inline-block; } }
 
 /* PIN gate */
 .pin-shell {
