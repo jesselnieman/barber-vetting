@@ -41,10 +41,26 @@ function StatusPill({ status }) {
   const map = {
     new: { label: 'New', cls: 'new' },
     reviewed: { label: 'Reviewed', cls: '' },
-    shortlist: { label: 'Shortlist', cls: 'shortlist' }
+    shortlist: { label: 'Shortlist', cls: 'shortlist' },
+    archived: { label: 'Archived', cls: 'archived' }
   };
   const m = map[status] || map.new;
   return <span className={`c-status ${m.cls}`}>{m.label}</span>;
+}
+
+function ArchiveConfirm({ name, onConfirm, onCancel }) {
+  return (
+    <div className="archive-backdrop" onClick={onCancel}>
+      <div className="archive-modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
+        <div className="eyebrow">Archive?</div>
+        <p className="archive-warn">Have you contacted this person to let them know how you'd like to move forward?</p>
+        <div className="archive-actions">
+          <button className="btn-sm" onClick={onCancel}>Not yet — go back</button>
+          <button className="btn-sm danger active" onClick={onConfirm}>Yes — archive</button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function formatDateShort(iso) {
@@ -94,11 +110,13 @@ function CandidateListItem({ c, active, onClick }) {
 
 function Sidebar({ candidates, activeIdx, onSelect, filter, setFilter }) {
   const counts = useMemo(() => {
-    const all = candidates.length;
-    const neu = candidates.filter(c => c.status === 'new').length;
-    const sh = candidates.filter(c => c.status === 'shortlist').length;
-    const flagged = candidates.filter(c => computeFlags(c.answers).length > 0).length;
-    return { all, neu, sh, flagged };
+    const active = candidates.filter(c => c.status !== 'archived');
+    const all = active.length;
+    const neu = active.filter(c => c.status === 'new').length;
+    const sh = active.filter(c => c.status === 'shortlist').length;
+    const flagged = active.filter(c => computeFlags(c.answers).length > 0).length;
+    const archived = candidates.filter(c => c.status === 'archived').length;
+    return { all, neu, sh, flagged, archived };
   }, [candidates]);
 
   return (
@@ -117,6 +135,7 @@ function Sidebar({ candidates, activeIdx, onSelect, filter, setFilter }) {
           <button className={`chip ${filter === 'new' ? 'active' : ''}`} onClick={() => setFilter('new')}>New · {counts.neu}</button>
           <button className={`chip ${filter === 'shortlist' ? 'active' : ''}`} onClick={() => setFilter('shortlist')}>Shortlist · {counts.sh}</button>
           <button className={`chip ${filter === 'flagged' ? 'active' : ''}`} onClick={() => setFilter('flagged')}>Flagged · {counts.flagged}</button>
+          <button className={`chip ${filter === 'archived' ? 'active' : ''}`} onClick={() => setFilter('archived')}>Archived · {counts.archived}</button>
         </div>
       </div>
       <div className="candidate-list">
@@ -149,7 +168,9 @@ function answerToDisplay(q, v) {
   return <span className="a-val">{String(v)}</span>;
 }
 
-function CandidateDetail({ candidate, onStatusChange, onBack }) {
+function CandidateDetail({ candidate, onStatusChange, onArchive, onBack }) {
+  const [confirmArchive, setConfirmArchive] = useState(false);
+  useEffect(() => { setConfirmArchive(false); }, [candidate && candidate.email, candidate && candidate.submittedAt]);
   if (!candidate) {
     return (
       <div className="empty-state">
@@ -186,6 +207,10 @@ function CandidateDetail({ candidate, onStatusChange, onBack }) {
               className={`btn-sm ${candidate.status === 'shortlist' ? 'active' : ''}`}
               onClick={() => onStatusChange(candidate.status === 'shortlist' ? 'reviewed' : 'shortlist')}
             >★ Shortlist</button>
+            <button
+              className={`btn-sm archive ${candidate.status === 'archived' ? 'active' : ''}`}
+              onClick={() => candidate.status === 'archived' ? onStatusChange('reviewed') : setConfirmArchive(true)}
+            >{candidate.status === 'archived' ? 'Unarchive' : 'Archive'}</button>
           </div>
           <div className="conf">
             Submitted {new Date(candidate.submittedAt).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })}
@@ -231,6 +256,14 @@ function CandidateDetail({ candidate, onStatusChange, onBack }) {
             </ul>
           </div>
         </div>
+      )}
+
+      {confirmArchive && (
+        <ArchiveConfirm
+          name={candidate.fullName}
+          onCancel={() => setConfirmArchive(false)}
+          onConfirm={() => { setConfirmArchive(false); onArchive(); }}
+        />
       )}
 
       {/* Answers by section */}
@@ -284,6 +317,8 @@ function ReviewPortal() {
 
   const filtered = useMemo(() => {
     return candidates.filter(c => {
+      if (filter === 'archived') return c.status === 'archived';
+      if (c.status === 'archived') return false;
       if (filter === 'all') return true;
       if (filter === 'flagged') return computeFlags(c.answers).length > 0;
       return c.status === filter;
@@ -301,6 +336,11 @@ function ReviewPortal() {
     setCandidates(prev => prev.map(c => (c === active ? { ...c, status } : c)));
   };
 
+  const handleArchive = () => {
+    if (!active) return;
+    setCandidates(prev => prev.map(c => (c === active ? { ...c, status: 'archived' } : c)));
+  };
+
   if (!unlocked) return <PinGate onUnlock={handleUnlock} />;
 
   return (
@@ -316,6 +356,7 @@ function ReviewPortal() {
         <CandidateDetail
           candidate={active}
           onStatusChange={handleStatusChange}
+          onArchive={handleArchive}
           onBack={() => setMobileView('list')}
         />
       </main>
