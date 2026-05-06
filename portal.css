@@ -43,7 +43,7 @@
   line-height: 1;
   letter-spacing: -0.02em;
 }
-.pin-card h1 em { font-style: italic; color: var(--sage); font-weight: 300; }
+.pin-card h1 em { font-style: normal; color: var(--sage); font-weight: 300; }
 .pin-card .sub { color: var(--ink-dim); margin-top: 12px; font-size: 14px; }
 .pin-input {
   margin-top: 28px;
@@ -230,7 +230,7 @@
 }
 .empty-state .bigtype {
   font-family: var(--serif-display);
-  font-style: italic;
+  font-style: normal;
   font-size: 44px;
   color: var(--ink-dim);
   line-height: 1.1;

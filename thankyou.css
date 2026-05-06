@@ -46,7 +46,7 @@
   letter-spacing: -0.02em;
   margin-top: 14px;
 }
-.ty-title em { font-style: italic; color: var(--sage); font-weight: 300; }
+.ty-title em { font-style: normal; color: var(--sage); font-weight: 300; }
 
 .ty-lede {
   margin-top: 20px;

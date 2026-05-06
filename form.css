@@ -71,7 +71,7 @@
   letter-spacing: -0.02em;
 }
 .hero-headline h1 em {
-  font-style: italic;
+  font-style: normal;
   color: var(--sage);
   font-weight: 300;
 }
@@ -176,7 +176,7 @@
   font-weight: 400;
   letter-spacing: -0.02em;
 }
-.section-intro h2 em { font-style: italic; color: var(--sage); font-weight: 300; }
+.section-intro h2 em { font-style: normal; color: var(--sage); font-weight: 300; }
 .section-intro p {
   margin-top: 12px;
   color: var(--ink-dim);
