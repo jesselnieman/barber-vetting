@@ -149,7 +149,7 @@ function answerToDisplay(q, v) {
   return <span className="a-val">{String(v)}</span>;
 }
 
-function CandidateDetail({ candidate, onStatusChange }) {
+function CandidateDetail({ candidate, onStatusChange, onBack }) {
   if (!candidate) {
     return (
       <div className="empty-state">
@@ -165,6 +165,7 @@ function CandidateDetail({ candidate, onStatusChange }) {
 
   return (
     <div>
+      <button className="mobile-back" onClick={onBack}>← All candidates</button>
       <div className="review-head">
         <div className="name-block">
           <span className="eyebrow">Candidate Profile</span>
@@ -274,6 +275,7 @@ function ReviewPortal() {
   });
   const [activeIdx, setActiveIdx] = useState(0);
   const [filter, setFilter] = useState('all');
+  const [mobileView, setMobileView] = useState('list');
 
   const handleUnlock = () => {
     localStorage.setItem('ccb_portal_unlocked', 'yes');
@@ -302,16 +304,20 @@ function ReviewPortal() {
   if (!unlocked) return <PinGate onUnlock={handleUnlock} />;
 
   return (
-    <div className="portal-shell">
+    <div className={`portal-shell mobile-${mobileView}`}>
       <Sidebar
         candidates={filtered}
         activeIdx={activeIdx}
-        onSelect={setActiveIdx}
+        onSelect={(i) => { setActiveIdx(i); setMobileView('detail'); }}
         filter={filter}
         setFilter={setFilter}
       />
       <main className="portal-main">
-        <CandidateDetail candidate={active} onStatusChange={handleStatusChange} />
+        <CandidateDetail
+          candidate={active}
+          onStatusChange={handleStatusChange}
+          onBack={() => setMobileView('list')}
+        />
       </main>
     </div>
   );
