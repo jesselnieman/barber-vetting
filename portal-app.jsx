@@ -1,13 +1,13 @@
 // Review portal: PIN gate + candidate list + detail view
 const { useState, useEffect, useMemo } = React;
 
-const CORRECT_PIN = "3232"; // Bruce's PIN
+const CORRECT_PASSWORD = "phade"; // Bruce's password
 
 function PinGate({ onUnlock }) {
   const [val, setVal] = useState('');
   const [err, setErr] = useState(false);
   const submit = () => {
-    if (val === CORRECT_PIN) onUnlock();
+    if (val.toLowerCase() === CORRECT_PASSWORD) onUnlock();
     else { setErr(true); setVal(''); }
   };
   return (
@@ -20,21 +20,18 @@ function PinGate({ onUnlock }) {
         </div>
         <div className="eyebrow">Bruce's Review</div>
         <h1 style={{marginTop: 8}}>Who <em>is it?</em></h1>
-        <p className="sub">Enter your 4-digit PIN to review candidate applications.</p>
+        <p className="sub">Enter the password to review candidate applications.</p>
         <input
           className="pin-input"
           type="password"
-          inputMode="numeric"
           autoFocus
-          maxLength={4}
           value={val}
-          placeholder="• • • •"
-          onChange={e => { setErr(false); setVal(e.target.value.replace(/\D/g, '').slice(0,4)); }}
+          placeholder="••••••"
+          onChange={e => { setErr(false); setVal(e.target.value); }}
           onKeyDown={e => e.key === 'Enter' && submit()}
         />
-        {err && <div className="pin-error">Wrong PIN. Try again.</div>}
+        {err && <div className="pin-error">Wrong password. Try again.</div>}
         <button className="pin-btn" onClick={submit}>Unlock</button>
-        <div className="pin-hint">Demo PIN · 3232</div>
       </div>
     </div>
   );
