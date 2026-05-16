@@ -13,7 +13,7 @@ const HERO_COPY = [
   { eyebrow: "Section 01 · Basics", title: <>Start here.</>, body: "Three questions. License, schedule, booth rent. The rest of the application only matters if these three are yes." },
   { eyebrow: "Section 02 · Craft", title: <>The <em>work.</em></>, body: "Your clippers, your shears, your razor. Tell us what you can do and what you do best." },
   { eyebrow: "Section 03 · The chair as a business", title: <>Your <em>book.</em></>, body: "A barber is a small business. How you handle bookings, clients, and your own brand matters." },
-  { eyebrow: "Section 04 · Character", title: <>Half <em>human.</em></>, body: "Skill gets a client in the chair. Character brings them back. Talk to us about the human half." },
+  { eyebrow: "Section 04 · Character", title: <>The <em>human</em> part.</>, body: "Skill gets a client in the chair. Character brings them back. Talk to us about the human half." },
   { eyebrow: "Section 05 · Fit", title: <>Show up.</>, body: "Reliability isn't a skill, it's a standard. Where you are in your career and how you carry yourself." },
   { eyebrow: "Section 06 · Last word", title: <>Your <em>floor.</em></>, body: "One open question. Anything you want Bruce to know — this is where it goes." },
   { eyebrow: "Section 07 · Final detail", title: <>How we reach you.</>, body: "Your contact info. Bruce responds to every candidate personally — by phone." }
@@ -170,7 +170,6 @@ function ApplicationForm() {
         </div>
         <div className="hero-meta">
           <span>20 questions · 8–10 min</span>
-          <span className="signature">— Bruce</span>
         </div>
       </aside>
 
