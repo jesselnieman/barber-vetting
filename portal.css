@@ -230,8 +230,10 @@
   color: var(--ink-faint);
   letter-spacing: 0.1em;
 }
+.side-foot-actions { display: flex; gap: 14px; align-items: center; }
 .side-foot button { color: var(--ink-dim); font-size: 11px; letter-spacing: 0.1em; }
 .side-foot button:hover { color: var(--ink); }
+.side-foot button:disabled { opacity: 0.4; cursor: default; }
 
 /* Main review panel */
 .portal-main {

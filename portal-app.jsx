@@ -1,6 +1,8 @@
-// Review portal: PIN gate + candidate list + detail view
-const { useState, useEffect, useMemo } = React;
+// Review portal: auth gate + candidate list + detail view
+const { useState, useEffect, useMemo, useCallback } = React;
 
+// Legacy password gate — only used when Supabase isn't configured (demo mode).
+// With Supabase configured, the portal uses magic-link auth (see MagicLinkGate).
 const CORRECT_PASSWORD = "phade"; // Bruce's password
 
 function PinGate({ onUnlock }) {
@@ -32,6 +34,96 @@ function PinGate({ onUnlock }) {
         />
         {err && <div className="pin-error">Wrong password. Try again.</div>}
         <button className="pin-btn" onClick={submit}>Unlock</button>
+      </div>
+    </div>
+  );
+}
+
+function MagicLinkGate() {
+  const [email, setEmail] = useState('');
+  const [state, setState] = useState('idle'); // idle | sending | sent | error
+  const [msg, setMsg] = useState('');
+
+  const send = async () => {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setState('error'); setMsg('Enter a valid email.'); return;
+    }
+    setState('sending'); setMsg('');
+    const { error } = await CCB_DB.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: window.location.href }
+    });
+    if (error) { setState('error'); setMsg(error.message || 'Could not send the link.'); }
+    else setState('sent');
+  };
+
+  return (
+    <div className="pin-shell">
+      <div className="bg"></div>
+      <div className="pin-card">
+        <div className="pin-brand">
+          <img src="assets/logomark.png" alt="" />
+          <span>CENTER CITY BARBERS</span>
+        </div>
+        <div className="eyebrow">Bruce's Review</div>
+        {state === 'sent' ? (
+          <>
+            <h1 style={{marginTop: 8}}>Check your <em>email.</em></h1>
+            <p className="sub">A sign-in link is on its way to {email}. Open it on this device to enter the review portal.</p>
+            <button className="pin-btn" onClick={() => { setState('idle'); setEmail(''); }}>Use a different email</button>
+          </>
+        ) : (
+          <>
+            <h1 style={{marginTop: 8}}>Who <em>is it?</em></h1>
+            <p className="sub">Enter your email and we'll send a one-time sign-in link.</p>
+            <input
+              className="pin-input"
+              type="email"
+              autoFocus
+              value={email}
+              placeholder="you@example.com"
+              onChange={e => { if (state === 'error') setState('idle'); setEmail(e.target.value); }}
+              onKeyDown={e => e.key === 'Enter' && send()}
+            />
+            {state === 'error' && <div className="pin-error">{msg}</div>}
+            <button className="pin-btn" onClick={send} disabled={state === 'sending'}>
+              {state === 'sending' ? 'Sending…' : 'Send sign-in link'}
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function NotAuthorized({ email, onSignOut }) {
+  return (
+    <div className="pin-shell">
+      <div className="bg"></div>
+      <div className="pin-card">
+        <div className="pin-brand">
+          <img src="assets/logomark.png" alt="" />
+          <span>CENTER CITY BARBERS</span>
+        </div>
+        <div className="eyebrow">Bruce's Review</div>
+        <h1 style={{marginTop: 8}}>Not on the <em>list.</em></h1>
+        <p className="sub">{email} isn't an authorized reviewer. Ask Bruce to add you to the allowlist.</p>
+        <button className="pin-btn" onClick={onSignOut}>Sign out</button>
+      </div>
+    </div>
+  );
+}
+
+function PortalLoading() {
+  return (
+    <div className="pin-shell">
+      <div className="bg"></div>
+      <div className="pin-card">
+        <div className="pin-brand">
+          <img src="assets/logomark.png" alt="" />
+          <span>CENTER CITY BARBERS</span>
+        </div>
+        <p className="sub" style={{marginTop: 24}}>Loading…</p>
       </div>
     </div>
   );
@@ -108,7 +200,7 @@ function CandidateListItem({ c, active, onClick }) {
   );
 }
 
-function Sidebar({ candidates, activeIdx, onSelect, filter, setFilter }) {
+function Sidebar({ candidates, activeIdx, onSelect, filter, setFilter, onLock, onRefresh, loading }) {
   const counts = useMemo(() => {
     const active = candidates.filter(c => c.status !== 'archived');
     const all = active.length;
@@ -148,7 +240,10 @@ function Sidebar({ candidates, activeIdx, onSelect, filter, setFilter }) {
       </div>
       <div className="side-foot">
         <span>{candidates.length} {candidates.length === 1 ? 'candidate' : 'candidates'}</span>
-        <button onClick={() => { localStorage.removeItem('ccb_portal_unlocked'); location.reload(); }}>Lock ↑</button>
+        <div className="side-foot-actions">
+          <button onClick={onRefresh} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh ↻'}</button>
+          <button onClick={onLock}>Lock ↑</button>
+        </div>
       </div>
     </aside>
   );
@@ -296,23 +391,59 @@ function CandidateDetail({ candidate, onStatusChange, onArchive, onBack }) {
 }
 
 function ReviewPortal() {
-  const [unlocked, setUnlocked] = useState(() => localStorage.getItem('ccb_portal_unlocked') === 'yes');
-  const [candidates, setCandidates] = useState(() => {
-    // Seed with mocks + any real submissions from localStorage
-    try {
-      const live = JSON.parse(localStorage.getItem('ccb_candidates') || '[]');
-      return [...live, ...window.CCB_MOCK_CANDIDATES];
-    } catch {
-      return window.CCB_MOCK_CANDIDATES;
-    }
-  });
+  const supaAuth = CCB_API.enabled;
+
+  // --- auth: magic link (Supabase) or legacy password gate (demo mode) ---
+  const [session, setSession] = useState(null);
+  const [authorized, setAuthorized] = useState(null); // null = unknown / checking
+  const [checkingAuth, setCheckingAuth] = useState(supaAuth);
+  const [unlocked, setUnlocked] = useState(() => !supaAuth && localStorage.getItem('ccb_portal_unlocked') === 'yes');
+
+  useEffect(() => {
+    if (!supaAuth) return;
+    CCB_DB.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setCheckingAuth(false);
+    });
+    const { data } = CCB_DB.auth.onAuthStateChange((_event, sess) => setSession(sess));
+    return () => data.subscription.unsubscribe();
+  }, []);
+
+  // When a session appears, confirm the email is on the reviewer allowlist.
+  useEffect(() => {
+    if (!supaAuth) return;
+    if (!session) { setAuthorized(null); return; }
+    setAuthorized(null);
+    CCB_DB.rpc('is_reviewer').then(({ data }) => setAuthorized(!!data)).catch(() => setAuthorized(false));
+  }, [session]);
+
+  const isOpen = supaAuth ? !!(session && authorized) : unlocked;
+
+  // --- candidate data ---
+  const [candidates, setCandidates] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [activeIdx, setActiveIdx] = useState(0);
   const [filter, setFilter] = useState('all');
   const [mobileView, setMobileView] = useState('list');
 
+  const load = useCallback(() => {
+    setLoading(true);
+    CCB_API.fetchSubmissions()
+      .then(setCandidates)
+      .catch(e => console.error('[CCB] failed to load submissions', e))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { if (isOpen) load(); }, [isOpen, load]);
+
   const handleUnlock = () => {
     localStorage.setItem('ccb_portal_unlocked', 'yes');
     setUnlocked(true);
+  };
+
+  const handleLock = () => {
+    if (supaAuth) { CCB_DB.auth.signOut(); }
+    else { localStorage.removeItem('ccb_portal_unlocked'); setUnlocked(false); }
   };
 
   const filtered = useMemo(() => {
@@ -331,17 +462,26 @@ function ReviewPortal() {
 
   const active = filtered[activeIdx];
 
-  const handleStatusChange = (status) => {
+  const applyStatus = (status) => {
     if (!active) return;
+    const id = active.id;
     setCandidates(prev => prev.map(c => (c === active ? { ...c, status } : c)));
+    // Persist; on failure, reload from the source of truth.
+    CCB_API.updateStatus(id, status).catch(e => { console.error('[CCB] status update failed', e); load(); });
   };
 
-  const handleArchive = () => {
-    if (!active) return;
-    setCandidates(prev => prev.map(c => (c === active ? { ...c, status: 'archived' } : c)));
-  };
+  const handleStatusChange = (status) => applyStatus(status);
+  const handleArchive = () => applyStatus('archived');
 
-  if (!unlocked) return <PinGate onUnlock={handleUnlock} />;
+  // --- gating ---
+  if (supaAuth) {
+    if (checkingAuth) return <PortalLoading />;
+    if (!session) return <MagicLinkGate />;
+    if (authorized === null) return <PortalLoading />;
+    if (!authorized) return <NotAuthorized email={session.user.email} onSignOut={handleLock} />;
+  } else if (!unlocked) {
+    return <PinGate onUnlock={handleUnlock} />;
+  }
 
   return (
     <div className={`portal-shell mobile-${mobileView}`}>
@@ -351,6 +491,9 @@ function ReviewPortal() {
         onSelect={(i) => { setActiveIdx(i); setMobileView('detail'); }}
         filter={filter}
         setFilter={setFilter}
+        onLock={handleLock}
+        onRefresh={load}
+        loading={loading}
       />
       <main className="portal-main">
         <CandidateDetail

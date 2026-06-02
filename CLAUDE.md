@@ -15,10 +15,10 @@ This is a **zero-build static site**. Everything ships as plain HTML/CSS/JSX and
 ### Three entry points, one shared config
 
 - `index.html` — landing page, links to Apply/Review.
-- `Apply.html` — candidate-facing form. Loads `data.js`, then `form-questions.jsx`, `form-thankyou.jsx`, `form-app.jsx` (order matters — see below), then renders `<ApplicationForm />`.
-- `Review.html` — Bruce's PIN-gated review portal. Loads `data.js` and `portal-app.jsx`, then renders `<ReviewPortal />`.
+- `Apply.html` — candidate-facing form. Loads `data.js`, `supabase-config.js`, `supabase-client.js`, then `form-questions.jsx`, `form-thankyou.jsx`, `form-app.jsx` (order matters — see below), then renders `<ApplicationForm />`.
+- `Review.html` — Bruce's magic-link-gated review portal. Loads `data.js`, `supabase-config.js`, `supabase-client.js`, then `portal-app.jsx`, then renders `<ReviewPortal />`.
 
-React 18.3.1, ReactDOM 18.3.1, and @babel/standalone 7.29.0 are loaded from unpkg with SRI hashes. If versions change, the SRI hashes in the HTML must be regenerated.
+React 18.3.1, ReactDOM 18.3.1, @babel/standalone 7.29.0, and @supabase/supabase-js 2.45.4 are loaded from unpkg with SRI hashes. If versions change, the SRI hashes in the HTML must be regenerated (the supabase UMD build exposes `window.supabase.createClient`).
 
 ### No modules — script order is the dependency graph
 
@@ -26,6 +26,7 @@ Nothing is bundled and there are no `import`/`export` statements anywhere. All c
 
 - When adding a new component, its `<script type="text/babel" src="...">` tag must be placed **before** any script that consumes it in the HTML.
 - Shared data lives on `window.CCB_SECTIONS` and `window.CCB_MOCK_CANDIDATES` (defined in `data.js`). Both the form and the portal read from these — treat `data.js` as the single source of truth for question config.
+- The data layer is a global too: `supabase-client.js` defines `window.CCB_API` (and `window.CCB_DB`, the supabase client). Both surfaces go through `CCB_API` rather than touching Supabase or localStorage directly. It must load **after** `data.js`/`supabase-config.js` and **before** the `.jsx` apps.
 
 ### Question config drives behavior in two places
 
@@ -36,21 +37,24 @@ Nothing is bundled and there are no `import`/`export` statements anywhere. All c
 
 If you change flag semantics, edit both.
 
-### localStorage is the backend
+### Supabase is the backend (with a localStorage fallback)
 
-There's no server. All state lives in `localStorage`:
+State lives in a single Supabase table, `submissions` (schema + RLS in `supabase/schema.sql`, demo seed in `supabase/seed.sql`). One table holds everything: a **draft is a row with `status='draft'`**, and submitting flips that same row to `status='new'`. `name`/`email`/`phone`/`years` are promoted to columns; the rest of the answers live in the `answers` jsonb. Run `schema.sql` then `seed.sql` in the Supabase SQL editor for a fresh project, and put the email Bruce signs in with into the `reviewers` allowlist (seed.sql seeds a placeholder).
 
-- `ccb_draft` — in-progress form answers (auto-saved on change).
-- `ccb_section` — last-viewed section index.
-- `ccb_submission` — the current user's completed submission (drives the Thank You screen).
-- `ccb_candidates` — the portal's inbox; submissions push into this array (mock "email delivery" from form → portal).
-- `ccb_portal_unlocked` — `"yes"` once the PIN has been entered.
+`CCB_API` (in `supabase-client.js`) is the only thing that talks to the DB:
 
-The portal seeds its list with `window.CCB_MOCK_CANDIDATES` prepended with any real submissions from `ccb_candidates`.
+- `loadDraft()` / `saveDraft(answers)` — restore/sync the in-progress draft. The form keeps the draft row's id in `localStorage.ccb_draft_id`.
+- `submit(answers, flags)` — promotes the draft to a real submission; returns `{ confirmationId, submittedAt }` (confirmationId is derived from the row uuid).
+- `fetchSubmissions()` — the portal inbox (everything except drafts).
+- `updateStatus(id, status)` — persists reviewed/shortlist/archive changes.
 
-### PIN gate
+**Fallback:** if `supabase-config.js` still holds the `YOUR_SUPABASE_*` placeholders, `CCB_API.enabled` is `false` and every method falls back to the original localStorage behavior (`ccb_draft`, `ccb_submission`, `ccb_candidates`, seeded from `window.CCB_MOCK_CANDIDATES`). This keeps the demo running with zero config. `ccb_section` (last-viewed section) is always localStorage-only.
 
-`CORRECT_PIN = "3232"` is hardcoded at the top of `portal-app.jsx`. This is a demo gate — not a real auth boundary. Everything in localStorage is readable by anyone with devtools.
+Security is enforced by **RLS**, since the anon key ships in the browser: anon can only create/read/update *drafts* and submit them; submitted rows (PII) are readable only by magic-link reviewers whose email is in the `reviewers` allowlist (checked via the `is_reviewer()` RPC). Note the demo limitation: anon can read *any* draft row (RLS can't scope by id without auth) — the row uuid is the only secret.
+
+### Auth gate
+
+When Supabase is configured the portal uses **magic-link auth** (`supabase.auth.signInWithOtp`, see `MagicLinkGate` in `portal-app.jsx`); a signed-in user whose email isn't in `reviewers` gets the `NotAuthorized` screen. When Supabase is **not** configured it falls back to the legacy demo password gate (`CORRECT_PASSWORD` at the top of `portal-app.jsx`, stored in `localStorage.ccb_portal_unlocked`) — that gate is not a real auth boundary.
 
 ## Conventions worth preserving
 
