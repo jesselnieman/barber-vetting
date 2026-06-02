@@ -56,11 +56,15 @@ as $$
 $$;
 
 -- ---- anon (candidate) policies -------------------------------------------
+-- Anon may create a draft (autosave) OR a completed submission. The client
+-- inserts the final submission as its OWN row with status='new' rather than
+-- transitioning the draft, so this INSERT check must allow both states.
 drop policy if exists "anon insert draft" on public.submissions;
 create policy "anon insert draft"
   on public.submissions for insert to anon
-  with check (status = 'draft');
+  with check (status in ('draft', 'new'));
 
+-- Draft autosave: anon may keep updating a row while it stays a draft.
 drop policy if exists "anon update draft" on public.submissions;
 create policy "anon update draft"
   on public.submissions for update to anon

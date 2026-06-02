@@ -98,6 +98,11 @@
         return {};
       }
     }
+    // Local cache holds everything (incl. contact, which is never synced to the
+    // server for privacy — see saveDraft). The server holds the q* answers.
+    let local = {};
+    try { local = JSON.parse(localStorage.getItem("ccb_draft") || "{}"); } catch {}
+
     const id = getDraftId();
     const { data, error } = await db
       .from("submissions")
@@ -105,44 +110,28 @@
       .eq("id", id)
       .eq("status", "draft")
       .maybeSingle();
-    if (error || !data) {
-      // Fall back to whatever is cached locally.
-      try {
-        return JSON.parse(localStorage.getItem("ccb_draft") || "{}");
-      } catch {
-        return {};
-      }
-    }
-    return data.answers || {};
+    if (error || !data) return local;
+    // Server q* answers win; contact comes from the local cache.
+    return { ...local, ...(data.answers || {}) };
   }
 
   async function saveDraft(answers) {
-    // Always keep a local cache for resilience / offline.
+    // Always keep a full local cache (incl. contact) for resilience / offline.
     try {
       localStorage.setItem("ccb_draft", JSON.stringify(answers));
     } catch {}
     if (!db) return;
-    const { contact, answers: qs } = splitContact(answers);
+    // Only the q* answers are synced to the server. Contact PII is deliberately
+    // NOT written to draft rows: a draft is anon-readable and lingers after
+    // submit (anon can't delete it), so keeping contact out of it avoids
+    // exposing names/emails/phones. Contact is attached only to the submitted
+    // row (see submit), which anon cannot read back.
+    const { answers: qs } = splitContact(answers);
     const id = getDraftId();
     await db.from("submissions").upsert(
-      {
-        id,
-        status: "draft",
-        answers: { ...qs, ...stripNull(contact) }
-      },
+      { id, status: "draft", answers: qs },
       { onConflict: "id" }
     );
-  }
-
-  // Drafts keep contact fields inside answers (so a half-filled form restores
-  // fully); on submit they are promoted to columns.
-  function stripNull(obj) {
-    const out = {};
-    Object.keys(obj).forEach((k) => {
-      if (obj[k] !== null && obj[k] !== undefined && obj[k] !== "")
-        out[k] = obj[k];
-    });
-    return out;
   }
 
   // ---- API: submit ---------------------------------------------------------
@@ -174,37 +163,34 @@
       return { confirmationId, submittedAt };
     }
 
-    const id = getDraftId();
-    // Make sure a draft row exists (anon may only INSERT rows with status
-    // 'draft'), then promote it to a real submission.
-    await db
-      .from("submissions")
-      .upsert({ id, status: "draft", answers: qs }, { onConflict: "id" });
-
-    const { data, error } = await db
-      .from("submissions")
-      .update({
-        name: contact.name,
-        email: contact.email,
-        phone: contact.phone,
-        years: contact.years,
-        answers: qs,
-        flags,
-        status: "new"
-      })
-      .eq("id", id)
-      .select("id, created_at")
-      .single();
+    // Insert the submission as its OWN row rather than transitioning the draft.
+    // (Anon can INSERT a status='new' row, but cannot UPDATE a draft's status
+    // to 'new' on this database — so we don't rely on the transition.) We mint
+    // the id client-side so we can build the confirmation without reading the
+    // row back (the anon SELECT policy hides non-draft rows). No .select().
+    const subId = uuid();
+    const { error } = await db.from("submissions").insert({
+      id: subId,
+      status: "new",
+      name: contact.name,
+      email: contact.email,
+      phone: contact.phone,
+      years: contact.years,
+      answers: qs,
+      flags
+    });
 
     if (error) throw error;
 
-    // This application is delivered; the next visit starts a fresh draft.
+    // Delivered. The draft row (q* only, no contact) is now orphaned — anon
+    // can't delete it, but it carries no PII and the portal ignores drafts.
+    // The next visit starts a fresh draft.
     localStorage.removeItem("ccb_draft");
     localStorage.removeItem("ccb_draft_id");
 
     return {
-      confirmationId: confirmationFromId(data.id),
-      submittedAt: data.created_at
+      confirmationId: confirmationFromId(subId),
+      submittedAt
     };
   }
 
