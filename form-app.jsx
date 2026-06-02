@@ -21,6 +21,8 @@ const HERO_COPY = [
 
 function ApplicationForm() {
   const [answers, setAnswers] = useState(() => {
+    // Instant hydrate from the local cache; the authoritative draft (if any)
+    // is loaded from Supabase on mount below.
     try { return JSON.parse(localStorage.getItem('ccb_draft') || '{}'); } catch { return {}; }
   });
   const [sectionIdx, setSectionIdx] = useState(() => {
@@ -30,13 +32,29 @@ function ApplicationForm() {
   const [submitted, setSubmitted] = useState(() => {
     try { return JSON.parse(localStorage.getItem('ccb_submission') || 'null'); } catch { return null; }
   });
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
 
   const sections = window.CCB_SECTIONS;
   const totalSteps = sections.length;
   const isLast = sectionIdx === totalSteps - 1;
 
+  // Load any in-progress draft from Supabase once on mount. Skip if this user
+  // has already submitted (the Thank You screen owns the view then).
+  const hydrated = React.useRef(false);
   React.useEffect(() => {
-    localStorage.setItem('ccb_draft', JSON.stringify(answers));
+    if (submitted) return;
+    CCB_API.loadDraft().then((draft) => {
+      hydrated.current = true;
+      if (draft && Object.keys(draft).length) setAnswers(draft);
+    }).catch(() => { hydrated.current = true; });
+  }, []);
+
+  // Sync the draft to Supabase (and the local cache) when answers change,
+  // debounced so we don't write on every keystroke.
+  React.useEffect(() => {
+    const t = setTimeout(() => { CCB_API.saveDraft(answers); }, 600);
+    return () => clearTimeout(t);
   }, [answers]);
   React.useEffect(() => {
     localStorage.setItem('ccb_section', String(sectionIdx));
@@ -90,8 +108,9 @@ function ApplicationForm() {
     }
   };
 
-  const handleSubmit = () => {
-    // Build flagged profile
+  const handleSubmit = async () => {
+    // Build flagged profile. NOTE: this logic is mirrored in computeFlags() in
+    // portal-app.jsx — keep the two in sync (see CLAUDE.md).
     const flags = [];
     sections.forEach(s => s.questions.forEach(q => {
       if (q.qualifier && q.negative && q.negative.includes(answers[q.id])) {
@@ -102,33 +121,28 @@ function ApplicationForm() {
       }
     }));
 
+    setSubmitting(true);
+    setSubmitError(null);
+    let result;
+    try {
+      result = await CCB_API.submit(answers, flags);
+    } catch (e) {
+      console.error('[CCB] submission failed', e);
+      setSubmitting(false);
+      setSubmitError("Couldn't send your application — check your connection and try again.");
+      return; // keep the draft intact so they can retry
+    }
+
     const submission = {
       ...answers,
-      submittedAt: new Date().toISOString(),
-      confirmationId: 'CCB-' + Math.random().toString(36).slice(2, 8).toUpperCase(),
+      submittedAt: result.submittedAt,
+      confirmationId: result.confirmationId,
       flags,
       status: 'new'
     };
     localStorage.setItem('ccb_submission', JSON.stringify(submission));
-    // Push into the portal's candidate store too (mock email delivery)
-    try {
-      const key = 'ccb_candidates';
-      const arr = JSON.parse(localStorage.getItem(key) || '[]');
-      arr.unshift({
-        submittedAt: submission.submittedAt,
-        fullName: submission.fullName,
-        phone: submission.phone,
-        email: submission.email,
-        years: Number(submission.years),
-        status: 'new',
-        confirmationId: submission.confirmationId,
-        flags,
-        answers: Object.fromEntries(Object.entries(answers).filter(([k]) => k.startsWith('q')))
-      });
-      localStorage.setItem(key, JSON.stringify(arr));
-    } catch {}
     setSubmitted(submission);
-    localStorage.removeItem('ccb_draft');
+    setSubmitting(false);
     localStorage.removeItem('ccb_section');
     window.scrollTo({ top: 0, behavior: 'instant' });
   };
@@ -140,6 +154,7 @@ function ApplicationForm() {
     setErrors({});
     localStorage.removeItem('ccb_submission');
     localStorage.removeItem('ccb_draft');
+    localStorage.removeItem('ccb_draft_id');
     localStorage.removeItem('ccb_section');
   };
 
@@ -216,12 +231,14 @@ function ApplicationForm() {
           </div>
         </div>
 
+        {submitError && <div className="form-submit-error">{submitError}</div>}
+
         <div className="form-nav">
-          <button className="btn ghost" onClick={back} disabled={sectionIdx === 0}>
+          <button className="btn ghost" onClick={back} disabled={sectionIdx === 0 || submitting}>
             <span className="arrow">←</span> Back
           </button>
-          <button className="btn primary" onClick={next}>
-            {isLast ? 'Submit application' : 'Continue'} <span className="arrow">→</span>
+          <button className="btn primary" onClick={next} disabled={submitting}>
+            {isLast ? (submitting ? 'Sending…' : 'Submit application') : 'Continue'} <span className="arrow">→</span>
           </button>
         </div>
       </main>
